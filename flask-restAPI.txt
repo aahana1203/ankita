@@ -1,0 +1,53 @@
+exp: 5
+student-management-api: app.py
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+students = [
+    {
+        "id": 1,
+        "name": "Rahul",
+        "age": 20,
+        "course": "AIML"
+    },
+    {
+        "id": 2,
+        "name": "Anu",
+        "age": 21,
+        "course": "CSE"
+    }
+]
+
+
+@app.route('/students', methods=['GET'])
+def get_students():
+    return jsonify(students)
+
+
+@app.route('/students', methods=['POST'])
+def add_student():
+    data = request.get_json()
+
+    new_student = {
+        "id": len(students) + 1,
+        "name": data["name"],
+        "age": data["age"],
+        "course": data["course"]
+    }
+
+    students.append(new_student)
+
+    return jsonify(new_student), 201
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+-------------------------------------
+for POST add:
+{
+    "age": 22,
+    "course": "AIML",
+    "id": 3,
+    "name": "Arun"
+}
