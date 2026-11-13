@@ -1,0 +1,155 @@
+exp 9,10:
+to create dataset: housing_data.py:
+import numpy as np
+import pandas as pd
+
+def load_data():
+    np.random.seed(42)
+    n = 300
+
+    area = np.random.randint(600, 3000, n)
+    bedrooms = np.random.randint(1, 6, n)
+    age = np.random.randint(0, 40, n)
+
+    price = (
+        1500 * area
+        + 300000 * bedrooms
+        - 20000 * age
+        + np.random.normal(0, 150000, n)
+    )
+
+    df = pd.DataFrame({
+        "area": area,
+        "bedrooms": bedrooms,
+        "age": age,
+        "price": price
+    })
+
+    return df
+---------------------------------------------------------------------------------
+experiment1.py:
+import mlflow
+import mlflow.sklearn
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, r2_score
+
+from housing_data import load_data
+
+df = load_data()
+
+X = df[["area", "bedrooms", "age"]]
+y = df["price"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("House_Price_Basic")
+
+with mlflow.start_run():
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    predictions = model.predict(X_test)
+
+    mae = mean_absolute_error(y_test, predictions)
+    r2 = r2_score(y_test, predictions)
+
+    mlflow.log_param("model", "LinearRegression")
+    mlflow.log_param("test_size", 0.2)
+
+    mlflow.log_metric("MAE", mae)
+    mlflow.log_metric("R2", r2)
+
+    mlflow.sklearn.log_model(
+        sk_model=model,
+        artifact_path="model"
+    )
+
+    print("MAE:", round(mae, 2))
+    print("R2 Score:", round(r2, 4))
+
+print("Experiment tracked successfully")
+-----------------------------------------------------------------------------------------------------------
+experiment2.py:
+import mlflow
+import mlflow.sklearn
+
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+from housing_data import load_data
+
+df = load_data()
+
+X = df[["area", "bedrooms", "age"]]
+y = df["price"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("House_Price_Hyperparameter_Tuning")
+
+experiments = [
+    {"alpha": 0.1, "scaling": True},
+    {"alpha": 1.0, "scaling": True},
+    {"alpha": 10.0, "scaling": True},
+    {"alpha": 0.1, "scaling": False},
+    {"alpha": 1.0, "scaling": False},
+    {"alpha": 10.0, "scaling": False}
+]
+
+for config in experiments:
+
+    steps = []
+
+    if config["scaling"]:
+        steps.append(("scaler", StandardScaler()))
+
+    steps.append(("model", Ridge(alpha=config["alpha"])))
+
+    model = Pipeline(steps)
+
+    with mlflow.start_run():
+
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+
+        mae = mean_absolute_error(y_test, predictions)
+        mse = mean_squared_error(y_test, predictions)
+        rmse = mean_squared_error(
+            y_test, predictions
+        ) ** 0.5
+        r2 = r2_score(y_test, predictions)
+
+        mlflow.log_param("alpha", config["alpha"])
+        mlflow.log_param("scaling", config["scaling"])
+        mlflow.log_param("model", "Ridge Regression")
+
+        mlflow.log_metric("MAE", mae)
+        mlflow.log_metric("MSE", mse)
+        mlflow.log_metric("RMSE", rmse)
+        mlflow.log_metric("R2", r2)
+
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            artifact_path="model"
+        )
+
+        print(
+            "Alpha:", config["alpha"],
+            "Scaling:", config["scaling"],
+            "RMSE:", round(rmse, 2),
+            "R2:", round(r2, 4)
+        )
+
+print("All experiments tracked successfully")
+
